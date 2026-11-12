@@ -144,11 +144,22 @@ interface AudioConfig {
   };
 }
 
+interface CaptionStyle {
+  wordsPerPage?: number;
+  fontSize?: number;
+  color?: string;
+  highlightColor?: string;
+  backgroundColor?: string;
+  bottomOffset?: number;
+  breakOnSentence?: boolean;
+}
+
 export interface ExplainerProps {
   [key: string]: unknown;
   cuts: Cut[];
   overlays?: Overlay[];
   captions?: WordCaption[];
+  captionStyle?: CaptionStyle;
   audio?: AudioConfig;
 }
 
@@ -534,6 +545,7 @@ export const Explainer: React.FC<ExplainerProps> = ({
   cuts,
   overlays,
   captions,
+  captionStyle,
   audio,
 }) => {
   const { fps, durationInFrames } = useVideoConfig();
@@ -570,10 +582,13 @@ export const Explainer: React.FC<ExplainerProps> = ({
       {captions && captions.length > 0 && (
         <CaptionOverlay
           words={captions}
-          wordsPerPage={6}
-          fontSize={42}
-          highlightColor="#22D3EE"
-          backgroundColor="rgba(15, 23, 42, 0.7)"
+          wordsPerPage={captionStyle?.wordsPerPage ?? 6}
+          fontSize={captionStyle?.fontSize ?? 42}
+          color={captionStyle?.color}
+          highlightColor={captionStyle?.highlightColor ?? "#22D3EE"}
+          backgroundColor={captionStyle?.backgroundColor ?? "rgba(15, 23, 42, 0.7)"}
+          bottomOffset={captionStyle?.bottomOffset}
+          breakOnSentence={captionStyle?.breakOnSentence}
         />
       )}
 

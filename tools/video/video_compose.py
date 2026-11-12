@@ -13,6 +13,8 @@ For pure video cuts (talking-head, etc.), FFmpeg handles trimming and concat.
 from __future__ import annotations
 
 import json
+import os
+import subprocess
 import time
 from pathlib import Path
 from typing import Any, Optional
@@ -538,7 +540,8 @@ class VideoCompose(BaseTool):
                 error="edit_decisions or composition_data required for remotion_render",
             )
 
-        output_path = Path(inputs.get("output_path", "renders/remotion_output.mp4"))
+        # Absolute paths: the Remotion CLI runs with cwd=remotion-composer/
+        output_path = Path(inputs.get("output_path", "renders/remotion_output.mp4")).resolve()
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Deep-copy props so we don't mutate the original
@@ -575,6 +578,12 @@ class VideoCompose(BaseTool):
             "--props", str(props_path),
         ]
 
+        # Use a pre-installed Chrome/Chromium instead of letting Remotion
+        # download its headless shell (needed in offline/restricted sandboxes).
+        browser = os.environ.get("REMOTION_BROWSER_EXECUTABLE")
+        if browser:
+            cmd.extend(["--browser-executable", browser])
+
         # Apply media profile dimensions
         profile_name = inputs.get("profile")
         if profile_name:
@@ -586,7 +595,10 @@ class VideoCompose(BaseTool):
                 pass
 
         try:
-            self.run_command(cmd, timeout=600)
+            self.run_command(cmd, timeout=600, cwd=composer_dir)
+        except subprocess.CalledProcessError as e:
+            tail = (e.stderr or e.stdout or "").strip()[-1500:]
+            return ToolResult(success=False, error=f"Remotion render failed: {e}\n{tail}")
         except Exception as e:
             return ToolResult(success=False, error=f"Remotion render failed: {e}")
         finally:
