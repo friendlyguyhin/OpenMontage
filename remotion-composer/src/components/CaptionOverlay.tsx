@@ -23,6 +23,10 @@ interface CaptionOverlayProps {
   highlightColor?: string;
   backgroundColor?: string;
   fontFamily?: string;
+  // Distance from the bottom edge in px (raise for Shorts/Reels UI safe zones)
+  bottomOffset?: number;
+  // Start a new page after words ending in . ! ? so pages never span sentences
+  breakOnSentence?: boolean;
 }
 
 interface CaptionPage {
@@ -31,17 +35,28 @@ interface CaptionPage {
   endMs: number;
 }
 
-function buildPages(words: WordCaption[], wordsPerPage: number): CaptionPage[] {
+function buildPages(
+  words: WordCaption[],
+  wordsPerPage: number,
+  breakOnSentence = false,
+): CaptionPage[] {
   const pages: CaptionPage[] = [];
-  for (let i = 0; i < words.length; i += wordsPerPage) {
-    const pageWords = words.slice(i, i + wordsPerPage);
-    if (pageWords.length === 0) continue;
+  let current: WordCaption[] = [];
+  const flush = () => {
+    if (current.length === 0) return;
     pages.push({
-      words: pageWords,
-      startMs: pageWords[0].startMs,
-      endMs: pageWords[pageWords.length - 1].endMs,
+      words: current,
+      startMs: current[0].startMs,
+      endMs: current[current.length - 1].endMs,
     });
+    current = [];
+  };
+  for (const w of words) {
+    current.push(w);
+    const sentenceEnd = breakOnSentence && /[.!?]["')\]]*$/.test(w.word);
+    if (current.length >= wordsPerPage || sentenceEnd) flush();
   }
+  flush();
   return pages;
 }
 
@@ -52,7 +67,8 @@ const PageRenderer: React.FC<{
   highlightColor: string;
   backgroundColor: string;
   fontFamily: string;
-}> = ({ page, fontSize, color, highlightColor, backgroundColor, fontFamily }) => {
+  bottomOffset: number;
+}> = ({ page, fontSize, color, highlightColor, backgroundColor, fontFamily, bottomOffset }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
@@ -70,7 +86,7 @@ const PageRenderer: React.FC<{
       style={{
         justifyContent: "flex-end",
         alignItems: "center",
-        paddingBottom: 80,
+        paddingBottom: bottomOffset,
       }}
     >
       <div
@@ -125,9 +141,11 @@ export const CaptionOverlay: React.FC<CaptionOverlayProps> = ({
   highlightColor = "#22D3EE",
   backgroundColor = "rgba(15, 23, 42, 0.75)",
   fontFamily = "Space Grotesk, Inter, system-ui, sans-serif",
+  bottomOffset = 80,
+  breakOnSentence = false,
 }) => {
   const { fps } = useVideoConfig();
-  const pages = buildPages(words, wordsPerPage);
+  const pages = buildPages(words, wordsPerPage, breakOnSentence);
 
   return (
     <AbsoluteFill>
@@ -148,6 +166,7 @@ export const CaptionOverlay: React.FC<CaptionOverlayProps> = ({
               highlightColor={highlightColor}
               backgroundColor={backgroundColor}
               fontFamily={fontFamily}
+              bottomOffset={bottomOffset}
             />
           </Sequence>
         );
